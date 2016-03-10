@@ -195,12 +195,13 @@ public class DruidJsonValidatorTest
         null
     );
 
-    File tmp = File.createTempFile("test", null);
+    File tmp = temporaryFolder.newFile("test_task.json");
     jsonMapper.writeValue(tmp, task);
+
     String type = "task";
     Cli<?> parser = Cli.builder("validator")
-        .withCommand(DruidJsonValidator.class)
-        .build();
+                       .withCommand(DruidJsonValidator.class)
+                       .build();
     Object command = parser.parse(
         "validator",
         "-f", tmp.getAbsolutePath(),
