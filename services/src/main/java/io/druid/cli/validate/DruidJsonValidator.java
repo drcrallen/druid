@@ -24,20 +24,23 @@ import com.fasterxml.jackson.databind.Module;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Throwables;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.io.CharSource;
 import com.google.common.io.LineProcessor;
 import com.google.common.io.Resources;
+import com.google.inject.Binder;
 import com.google.inject.Injector;
+import com.google.inject.name.Names;
 import com.metamx.common.UOE;
 import com.metamx.common.logger.Logger;
 import io.airlift.airline.Command;
 import io.airlift.airline.Option;
+import io.druid.cli.GuiceRunnable;
 import io.druid.data.input.InputRow;
 import io.druid.data.input.impl.StringInputRowParser;
 import io.druid.guice.ExtensionsConfig;
 import io.druid.guice.FirehoseModule;
-import io.druid.guice.GuiceInjectors;
 import io.druid.guice.IndexingServiceFirehoseModule;
 import io.druid.guice.LocalDataStorageDruidModule;
 import io.druid.guice.ParsersModule;
@@ -55,6 +58,7 @@ import java.io.PrintWriter;
 import java.io.Writer;
 import java.nio.charset.Charset;
 import java.util.Arrays;
+import java.util.List;
 
 /**
  */
@@ -62,8 +66,9 @@ import java.util.Arrays;
     name = "validator",
     description = "Validates that a given Druid JSON object is correctly formatted"
 )
-public class DruidJsonValidator implements Runnable
+public class DruidJsonValidator extends GuiceRunnable
 {
+  private static final Logger LOG = new Logger(DruidJsonValidator.class);
   private Writer logWriter = new PrintWriter(System.out);
 
   @Option(name = "-f", title = "file", description = "file to validate", required = true)
@@ -78,6 +83,27 @@ public class DruidJsonValidator implements Runnable
   @Option(name = "--log", title = "toLogger", description = "redirects any outputs to logger", required = false)
   public boolean toLogger;
 
+  public DruidJsonValidator()
+  {
+    super(LOG);
+  }
+
+  @Override
+  protected List<? extends com.google.inject.Module> getModules()
+  {
+    return ImmutableList.<com.google.inject.Module>of(
+        new com.google.inject.Module()
+        {
+          @Override
+          public void configure(Binder binder)
+          {
+            binder.bindConstant().annotatedWith(Names.named("serviceName")).to("druid/jsonvalidator");
+            binder.bindConstant().annotatedWith(Names.named("servicePort")).to(0);
+          }
+        }
+    );
+  }
+
   @Override
   public void run()
   {
@@ -86,7 +112,7 @@ public class DruidJsonValidator implements Runnable
       System.out.printf("File[%s] does not exist.%n", file);
     }
 
-    final Injector injector = GuiceInjectors.makeStartupInjector();
+    final Injector injector = makeInjector();
     final ObjectMapper jsonMapper = injector.getInstance(ObjectMapper.class);
     jsonMapper.setInjectableValues(new InjectableValues.Std().addValue(ObjectMapper.class, jsonMapper));
 
